@@ -1,0 +1,18 @@
+{
+  "name": "Feito?",
+  "short_name": "Feito?",
+  "description": "Inicie uma lavagem e receba lembretes até você confirmar que terminou.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F4FF",
+  "theme_color": "#F7F4FF",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#F7F4FF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141220" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Feito? — inicie uma lavagem e receba lembretes até você confirmar que terminou.">
+
+<!-- Content-Security-Policy: restringe scripts/estilos/conexões ao próprio site e à API
+     configurada. Ajuste connect-src se você mudar a URL da API em js/config.js. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self';
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data:;
+  connect-src 'self' https://*.workers.dev;
+  manifest-src 'self';
+  base-uri 'self';
+  form-action 'self';
+  frame-ancestors 'none';
+">
+
+<title>Feito?</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Feito?">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+<!-- ===================== Tela de carregamento ===================== -->
+<section id="screen-loading" class="screen screen-center" aria-live="polite">
+  <p class="loading-word">Feito?</p>
+</section>
+
+<!-- ===================== Tela: instalar na Tela de Início ===================== -->
+<section id="screen-install" class="screen screen-center" hidden>
+  <div class="onboarding-card">
+    <p class="onboarding-eyebrow">Passo 1 de 2</p>
+    <h1>Coloque o Feito? na sua Tela de Início</h1>
+    <p class="onboarding-body">
+      Toque em <strong>Compartilhar</strong> e escolha <strong>Adicionar à Tela de Início</strong>.
+      É assim que o iPhone libera os lembretes do app.
+    </p>
+
+    <div class="share-hint" aria-hidden="true">
+      <div class="share-hint-icon">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 16V4"/>
+          <path d="M7 9l5-5 5 5"/>
+          <rect x="4" y="13" width="16" height="7" rx="2"/>
+        </svg>
+      </div>
+      <p>Barra inferior do Safari → ícone de compartilhar → “Adicionar à Tela de Início”</p>
+    </div>
+
+    <button type="button" id="btn-install-continue-anyway" class="btn btn-ghost">
+      Usar mesmo assim (sem lembretes garantidos)
+    </button>
+  </div>
+</section>
+
+<!-- ===================== Tela: ativar notificações ===================== -->
+<section id="screen-enable-notifications" class="screen screen-center" hidden>
+  <div class="onboarding-card">
+    <p class="onboarding-eyebrow">Passo 2 de 2</p>
+    <h1>Posso te lembrar na hora certa?</h1>
+    <p class="onboarding-body">
+      Você escolhe quando os avisos começam. Eles continuam até você voltar aqui e confirmar
+      que terminou.
+    </p>
+    <button type="button" id="btn-enable-notifications" class="btn btn-primary btn-large">
+      Ativar lembretes
+    </button>
+    <button type="button" id="btn-skip-notifications" class="btn btn-ghost">
+      Agora não
+    </button>
+    <p id="notifications-denied-help" class="onboarding-help" hidden>
+      As notificações estão bloqueadas para o Feito?. Para reativar: abra os
+      <strong>Ajustes do iPhone → Feito? → Notificações</strong> e permita os avisos.
+      Depois é só voltar aqui.
+    </p>
+  </div>
+</section>
+
+<!-- ===================== App principal ===================== -->
+<section id="screen-main" class="screen" hidden>
+
+  <header class="app-header">
+    <span class="app-header-title">Feito?</span>
+    <span id="offline-badge" class="offline-badge" hidden>Offline</span>
+  </header>
+
+  <div id="global-banner" class="global-banner" hidden role="status"></div>
+
+  <main id="tab-panels">
+
+    <!-- ---------- Hoje ---------- -->
+    <section id="tab-today" class="tab-panel" data-tab="today">
+      <h1 class="screen-title" id="today-greeting">O que está rodando por aí?</h1>
+
+      <div id="today-content"></div>
+    </section>
+
+    <!-- ---------- Histórico ---------- -->
+    <section id="tab-history" class="tab-panel" data-tab="history" hidden>
+      <h1 class="screen-title">Histórico</h1>
+      <div id="history-indicators" class="indicators-row"></div>
+      <ul id="history-list" class="history-list"></ul>
+      <button type="button" id="btn-history-load-more" class="btn btn-secondary" hidden>Carregar mais</button>
+      <p id="history-empty" class="empty-hint" hidden>Ainda não há nada por aqui. Quando você concluir uma tarefa, ela aparece nesta lista.</p>
+    </section>
+
+    <!-- ---------- Ajustes ---------- -->
+    <section id="tab-settings" class="tab-panel" data-tab="settings" hidden>
+      <h1 class="screen-title">Ajustes</h1>
+      <div id="settings-content"></div>
+    </section>
+
+  </main>
+
+  <nav class="tab-bar" aria-label="Navegação principal">
+    <button type="button" class="tab-bar-btn is-active" data-tab-target="today" aria-current="page">
+      <span class="tab-bar-icon" aria-hidden="true">🏠</span>
+      <span>Hoje</span>
+    </button>
+    <button type="button" class="tab-bar-btn" data-tab-target="history">
+      <span class="tab-bar-icon" aria-hidden="true">🕓</span>
+      <span>Histórico</span>
+    </button>
+    <button type="button" class="tab-bar-btn" data-tab-target="settings">
+      <span class="tab-bar-icon" aria-hidden="true">⚙️</span>
+      <span>Ajustes</span>
+    </button>
+  </nav>
+
+</section>
+
+<!-- ===================== Bottom sheet: iniciar lavagem ===================== -->
+<div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
+<section id="sheet-start-task" class="sheet" hidden aria-label="Iniciar lavagem" role="dialog" aria-modal="true">
+  <div class="sheet-grabber" aria-hidden="true"></div>
+  <div id="sheet-start-task-content" class="sheet-content"></div>
+</section>
+
+<!-- ===================== Diálogo de confirmação genérico ===================== -->
+<div id="confirm-backdrop" class="sheet-backdrop" hidden></div>
+<section id="confirm-dialog" class="confirm-dialog" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+  <h2 id="confirm-title"></h2>
+  <p id="confirm-message"></p>
+  <div class="confirm-actions">
+    <button type="button" id="confirm-cancel-btn" class="btn btn-secondary"></button>
+    <button type="button" id="confirm-ok-btn" class="btn btn-danger"></button>
+  </div>
+</section>
+
+<!-- ===================== Banner de atualização disponível ===================== -->
+<div id="update-banner" class="update-banner" hidden>
+  <span>Tem uma versão nova pronta.</span>
+  <button type="button" id="btn-update-now" class="btn btn-primary btn-small">Atualizar agora</button>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
