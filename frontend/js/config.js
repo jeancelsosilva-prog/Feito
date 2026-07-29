@@ -6,6 +6,7 @@
 
 export const CONFIG = {
   // URL base da API do Cloudflare Worker, SEM barra no final.
+  // Exemplo: 'https://feito-app-api.seu-usuario.workers.dev'
   API_BASE_URL: 'https://feito-app-api.jeancelsosilva.workers.dev',
 
   // Chave pública VAPID (a mesma cadastrada no backend em wrangler.toml VAPID_PUBLIC_KEY).
@@ -16,5 +17,5 @@ export const CONFIG = {
 
   // Versão do app — usada para exibir o número em Ajustes e como parte do cache do Service
   // Worker (ver sw.js). Atualize ao publicar mudanças relevantes.
-  APP_VERSION: '1.0.0'
+  APP_VERSION: '1.1.0'
 };

@@ -4,7 +4,7 @@
 //
 // IMPORTANTE: suba o número de CACHE_VERSION sempre que publicar mudanças nos arquivos
 // estáticos. É isso que faz o Safari perceber que há uma versão nova do Service Worker.
-const CACHE_VERSION = 'feito-v3';
+const CACHE_VERSION = 'feito-v4';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 // Caminhos relativos ao próprio sw.js — funcionam tanto em domínio raiz quanto em
@@ -38,8 +38,10 @@ const APP_SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting ? null : null) // skipWaiting só roda via mensagem do app (ver 'message' abaixo)
+      // `cache: 'reload'` obriga a buscar da rede, ignorando o cache HTTP do navegador.
+      // Sem isso, o Safari pode "atualizar" o app shell com cópias antigas dos mesmos
+      // arquivos e a versão nova entra em vigor sem realmente conter as mudanças.
+      .then((cache) => cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: 'reload' }))))
   );
 });
 

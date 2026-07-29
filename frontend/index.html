@@ -42,7 +42,7 @@
 <!-- ===================== Tela: instalar na Tela de Início ===================== -->
 <section id="screen-install" class="screen screen-center" hidden>
   <div class="onboarding-card">
-    <p class="onboarding-eyebrow">Passo 1 de 2</p>
+    <p class="onboarding-eyebrow">Antes de começar</p>
     <h1>Coloque o Feito? na sua Tela de Início</h1>
     <p class="onboarding-body">
       Toque em <strong>Compartilhar</strong> e escolha <strong>Adicionar à Tela de Início</strong>.
@@ -61,31 +61,8 @@
     </div>
 
     <button type="button" id="btn-install-continue-anyway" class="btn btn-ghost">
-      Usar mesmo assim (sem lembretes garantidos)
+      Continuar sem instalar (sem lembretes)
     </button>
-  </div>
-</section>
-
-<!-- ===================== Tela: ativar notificações ===================== -->
-<section id="screen-enable-notifications" class="screen screen-center" hidden>
-  <div class="onboarding-card">
-    <p class="onboarding-eyebrow">Passo 2 de 2</p>
-    <h1>Posso te lembrar na hora certa?</h1>
-    <p class="onboarding-body">
-      Você escolhe quando os avisos começam. Eles continuam até você voltar aqui e confirmar
-      que terminou.
-    </p>
-    <button type="button" id="btn-enable-notifications" class="btn btn-primary btn-large">
-      Ativar lembretes
-    </button>
-    <button type="button" id="btn-skip-notifications" class="btn btn-ghost">
-      Agora não
-    </button>
-    <p id="notifications-denied-help" class="onboarding-help" hidden>
-      As notificações estão bloqueadas para o Feito?. Para reativar: abra os
-      <strong>Ajustes do iPhone → Feito? → Notificações</strong> e permita os avisos.
-      Depois é só voltar aqui.
-    </p>
   </div>
 </section>
 
@@ -98,6 +75,17 @@
   </header>
 
   <div id="global-banner" class="global-banner" hidden role="status"></div>
+
+  <!-- Convite para ativar os lembretes, dentro do app (substitui a antiga tela separada de
+       onboarding: quem já instalou na Tela de Início vai direto para o app e ativa daqui). -->
+  <div id="notif-cta" class="notif-cta" hidden>
+    <div class="notif-cta-text">
+      <strong>Ative os lembretes</strong>
+      <span>Sem isso, o Feito? não consegue te avisar quando a hora chegar.</span>
+    </div>
+    <button type="button" id="btn-enable-notifications-inline" class="btn btn-primary">Ativar</button>
+    <p id="notif-cta-error" class="notif-cta-error" hidden></p>
+  </div>
 
   <main id="tab-panels">
 

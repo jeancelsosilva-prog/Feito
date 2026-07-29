@@ -3,10 +3,11 @@
 // na seção 3 do briefing ao app principal (seção 4).
 
 import { getPlatformSnapshot } from './platform.js';
-import { getOnboardingSeenSync, setOnboardingSeenSync, kvGet } from './db.js';
+import { setOnboardingSeenSync } from './db.js';
 import { cacheTasksReplace, cacheTasksGetAll } from './db.js';
 import { ensureInstallation, api } from './api.js';
-import { wireInstallScreen, wireEnableNotificationsScreen } from './ui/onboarding.js';
+import { activateNotifications, isPushSubscribed } from './push.js';
+import { wireInstallScreen } from './ui/onboarding.js';
 import { renderToday } from './ui/today.js';
 import { renderHistory } from './ui/history.js';
 import { renderSettings, checkHomeArrivalIfConfigured } from './ui/settings.js';
@@ -15,7 +16,6 @@ import { toast } from './ui/components.js';
 const screens = {
   loading: document.getElementById('screen-loading'),
   install: document.getElementById('screen-install'),
-  enableNotifications: document.getElementById('screen-enable-notifications'),
   main: document.getElementById('screen-main')
 };
 
@@ -118,6 +118,58 @@ function wireTabBar() {
   });
 }
 
+// --------------------------- Ativação de lembretes (in-app) ---------------------------
+
+/** Mostra o cartão "Ative os lembretes" só enquanto as notificações não estiverem ativas. */
+async function refreshNotificationCta() {
+  const cta = document.getElementById('notif-cta');
+  if (!cta) return;
+
+  const platform = getPlatformSnapshot();
+  if (!platform.supportsPush || platform.notificationPermission === 'unsupported') {
+    cta.hidden = true;
+    return;
+  }
+
+  cta.hidden = platform.notificationPermission === 'granted' && (await isPushSubscribed());
+}
+
+function wireNotificationCta() {
+  const btn = document.getElementById('btn-enable-notifications-inline');
+  const errorEl = document.getElementById('notif-cta-error');
+  if (!btn || btn.dataset.wired === 'true') return;
+  btn.dataset.wired = 'true';
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Ativando…';
+    errorEl.hidden = true;
+
+    // Chamada direta dentro do handler de toque — é isso que o iOS Safari exige para
+    // permitir Notification.requestPermission().
+    const result = await activateNotifications();
+
+    btn.disabled = false;
+    btn.textContent = 'Ativar';
+
+    if (result.ok) {
+      toast('Lembretes ativados. Enviei uma notificação de teste.');
+      await refreshNotificationCta();
+      return;
+    }
+
+    if (result.permission === 'denied') {
+      errorEl.hidden = false;
+      errorEl.textContent =
+        'As notificações estão bloqueadas para o Feito?. Abra Ajustes do iPhone → Feito? → Notificações, permita os avisos e volte aqui.';
+      return;
+    }
+
+    errorEl.hidden = false;
+    errorEl.textContent = result.error || 'Não deu para ativar agora. Tente de novo.';
+  });
+}
+
 function openTaskById(taskId) {
   // MVP: não há tela de detalhe separada — a tarefa ativa já aparece na Hoje.
   // Garantimos que a aba correta esteja em foco e os dados estejam frescos.
@@ -134,21 +186,51 @@ async function registerServiceWorker() {
   try {
     const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
 
+    const showUpdateBanner = () => {
+      const banner = document.getElementById('update-banner');
+      if (banner) banner.hidden = false;
+    };
+
+    // Caso 1: já havia uma versão nova esperando quando o app abriu. O evento 'updatefound'
+    // NÃO dispara nesse cenário (ele já disparou numa sessão anterior), então sem esta
+    // checagem o banner nunca apareceria e o app ficaria preso na versão antiga.
+    if (registration.waiting && navigator.serviceWorker.controller) showUpdateBanner();
+
+    // Caso 2: a versão nova é descoberta agora, com o app aberto.
     registration.addEventListener('updatefound', () => {
       const installingWorker = registration.installing;
       if (!installingWorker) return;
       installingWorker.addEventListener('statechange', () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          document.getElementById('update-banner').hidden = false;
+          showUpdateBanner();
         }
       });
     });
 
-    document.getElementById('btn-update-now').addEventListener('click', () => {
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-    });
+    const btnUpdate = document.getElementById('btn-update-now');
+    if (btnUpdate) {
+      btnUpdate.addEventListener('click', async () => {
+        btnUpdate.disabled = true;
+        btnUpdate.textContent = 'Atualizando…';
+
+        // Pega a registration mais atual — a variável capturada acima pode estar
+        // desatualizada se o Safari trocou de worker no meio do caminho.
+        const current = (await navigator.serviceWorker.getRegistration()) || registration;
+
+        if (current.waiting) {
+          current.waiting.postMessage({ type: 'SKIP_WAITING' });
+        } else {
+          // Não há worker esperando: força uma verificação e, se aparecer um, ativa.
+          try { await current.update(); } catch { /* segue para o recarregamento */ }
+          if (current.waiting) current.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        // Rede de segurança: no Safari em modo standalone (PWA na tela de início) o evento
+        // 'controllerchange' às vezes não chega, e sem isso o banner ficava para sempre na
+        // tela com o app rodando a versão antiga. Recarregar resolve mesmo nesse caso.
+        setTimeout(() => window.location.reload(), 1200);
+      });
+    }
 
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -162,6 +244,11 @@ async function registerServiceWorker() {
         openTaskById(event.data.taskId);
       }
     });
+
+    // Procura versões novas sempre que o app volta ao primeiro plano.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') registration.update().catch(() => {});
+    });
   } catch {
     // Sem Service Worker, o app ainda funciona como temporizador visual (sem push).
   }
@@ -173,7 +260,6 @@ async function boot() {
   await registerServiceWorker();
 
   const platform = getPlatformSnapshot();
-  const onboardingSeen = getOnboardingSeenSync();
 
   const params = new URLSearchParams(window.location.search);
   const deepLinkTaskId = params.get('task');
@@ -182,6 +268,8 @@ async function boot() {
     setOnboardingSeenSync(true);
     showScreen('main');
     wireTabBar();
+    wireNotificationCta();
+    refreshNotificationCta();
 
     await ensureInstallation();
     await refreshTasksAndRender();
@@ -193,30 +281,19 @@ async function boot() {
     }
   }
 
-  function maybeShowEnableNotifications() {
-    const permission = platform.notificationPermission;
-    const alreadyDecided = permission === 'granted' || permission === 'denied' || permission === 'unsupported' || !platform.supportsPush;
-
-    if (alreadyDecided || onboardingSeen) {
-      proceedToMain();
-      return;
-    }
-
-    showScreen('enableNotifications');
-    wireEnableNotificationsScreen({
-      onResolved: () => proceedToMain()
-    });
-  }
-
+  // Onboarding enxuto: a ÚNICA tela que precisa existir antes do app é a de instalação,
+  // e só para quem ainda não instalou no iOS (sem estar na Tela de Início, o iPhone nem
+  // permite notificações). Quem já instalou entra direto no app; a ativação de lembretes
+  // virou um cartão dentro da tela Hoje (#notif-cta), sem etapa extra a percorrer.
   const needsInstallScreen = platform.isIos && !platform.isStandalone;
 
   if (needsInstallScreen) {
     showScreen('install');
     wireInstallScreen({
-      onContinueAnyway: () => maybeShowEnableNotifications()
+      onContinueAnyway: () => proceedToMain()
     });
   } else {
-    maybeShowEnableNotifications();
+    proceedToMain();
   }
 
   window.addEventListener('online', () => { updateOfflineBadge(); refreshTasksAndRender({ silent: true }); });
@@ -226,6 +303,7 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && !screens.main.hidden) {
       refreshTasksAndRender({ silent: true });
+      refreshNotificationCta();
       checkHomeArrivalIfConfigured(currentActiveTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled'));
     }
   });

@@ -268,6 +268,35 @@ input, select, textarea {
 .global-banner.is-danger { background: var(--color-danger-bg); color: var(--color-danger); }
 .global-banner.is-warning { background: var(--color-warning-bg); color: var(--color-warning); }
 
+/* Convite in-app para ativar notificações (ver #notif-cta em index.html). */
+.notif-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 20px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+.notif-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.notif-cta-text strong { font-size: 0.98rem; }
+.notif-cta-text span { font-size: 0.85rem; color: var(--color-text-muted); }
+.notif-cta .btn { flex: 0 0 auto; }
+.notif-cta-error {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--color-danger);
+  word-break: break-word;
+}
+
 #tab-panels {
   padding: 4px 20px calc(var(--tab-bar-height) + 24px);
 }

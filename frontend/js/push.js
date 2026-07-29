@@ -4,7 +4,7 @@
 
 import { CONFIG } from './config.js';
 import { api, ensureInstallation } from './api.js';
-const CACHE_VERSION = 'feito-v2';
+import { kvSet, kvGet } from './db.js';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -36,7 +36,8 @@ export async function activateNotifications() {
   // A instalação PRECISA existir antes de qualquer chamada autenticada. Este fluxo pode
   // rodar no onboarding, ou seja, antes de a tela principal ter chamado ensureInstallation();
   // sem isto, /api/push/subscribe sai sem os cabeçalhos de autenticação e o backend
-  // responde 401 ("Cabeçalhos de autenticação ausentes").
+  // responde 401 ("Cabeçalhos de autenticação ausentes"). Chamar de novo é barato e seguro:
+  // se a instalação já existe, o backend só atualiza metadados e devolve token: null.
   const installation = await ensureInstallation();
   if (!installation.ok) {
     return {
@@ -46,35 +47,10 @@ export async function activateNotifications() {
     };
   }
 
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(CONFIG.VAPID_PUBLIC_KEY)
-      });
-    }
-
-    const subJson = subscriptionToJson(subscription);
-    const result = await api.subscribePush(subJson);
-    if (!result.ok) {
-      return { ok: false, permission, error: result.error || 'Falha ao registrar as notificações no servidor.' };
-    }
-
-    await kvSet('pushSubscribed', true);
-    await kvSet('pushEndpoint', subJson.endpoint);
-
-    const testResult = await api.sendTestPush();
-    return { ok: true, permission, testSent: testResult.ok };
-  } catch (err) {
-    return { ok: false, permission, error: 'Não foi possível concluir a assinatura de notificações.' };
-  }
-}
-
-export async function isPushSubscribed() {
-  if (!('serviceWorker' in navigator)) return false;
-// `stage` acompanha em que ponto estamos, para que uma falha possa dizer ONDE quebrou.
+  // `stage` acompanha em que ponto estamos, para que uma falha possa dizer ONDE quebrou.
+  // Sem isso, qualquer erro dentro deste bloco virava a mesma mensagem genérica, que não
+  // ajuda nem o usuário nem quem está depurando (foi exatamente o que aconteceu no primeiro
+  // teste em iPhone real).
   let stage = 'service worker';
 
   try {
@@ -124,4 +100,32 @@ export async function isPushSubscribed() {
     };
   }
 }
+
+export async function isPushSubscribed() {
+  if (!('serviceWorker' in navigator)) return false;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    return Boolean(subscription);
+  } catch {
+    return Boolean(await kvGet('pushSubscribed'));
+  }
+}
+
+/** Usado pelo fluxo de "Apagar meus dados deste dispositivo". */
+export async function unsubscribeEverywhere() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await api.unsubscribePush(subscription.endpoint);
+        await subscription.unsubscribe();
+        return;
+      }
+    }
+    await api.unsubscribePush();
+  } catch {
+    // best-effort — a limpeza local (IndexedDB) continua acontecendo de qualquer forma.
+  }
 }
