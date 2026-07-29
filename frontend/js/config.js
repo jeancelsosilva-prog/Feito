@@ -6,11 +6,10 @@
 
 export const CONFIG = {
   // URL base da API do Cloudflare Worker, SEM barra no final.
-  // Exemplo: 'https://feito-app-api.seu-usuario.workers.dev'
-  API_BASE_URL: 'https://feito-app-api.SEU-SUBDOMINIO.workers.dev',
+  API_BASE_URL: 'https://feito-app-api.jeancelsosilva.workers.dev',
 
   // Chave pública VAPID (a mesma cadastrada no backend em wrangler.toml VAPID_PUBLIC_KEY).
-  VAPID_PUBLIC_KEY: 'COLE_AQUI_A_MESMA_CHAVE_PUBLICA_DO_WRANGLER_TOML',
+  VAPID_PUBLIC_KEY: 'BH7Lajz0qwN7jW7iy_6rFWA-03yxP1gv012FpqzTXcwGpGvFCXlzVSh42OHMgbw-m08AW9Swv77jsNROPumVvMQ',
 
   // Nome curto exibido em alguns lugares da UI.
   APP_NAME: 'Feito?',
