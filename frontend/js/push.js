@@ -74,29 +74,54 @@ export async function activateNotifications() {
 
 export async function isPushSubscribed() {
   if (!('serviceWorker' in navigator)) return false;
+// `stage` acompanha em que ponto estamos, para que uma falha possa dizer ONDE quebrou.
+  let stage = 'service worker';
+
   try {
     const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    return Boolean(subscription);
-  } catch {
-    return Boolean(await kvGet('pushSubscribed'));
+
+    stage = 'assinatura existente';
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      stage = 'chave VAPID';
+      const applicationServerKey = urlBase64ToUint8Array(CONFIG.VAPID_PUBLIC_KEY);
+      if (applicationServerKey.length !== 65 || applicationServerKey[0] !== 4) {
+        return {
+          ok: false,
+          permission,
+          error: `A chave VAPID pública em config.js parece inválida (${applicationServerKey.length} bytes; o esperado são 65). Confira se ela é idêntica à do wrangler.toml.`
+        };
+      }
+
+      stage = 'nova assinatura';
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey
+      });
+    }
+
+    stage = 'registro no servidor';
+    const subJson = subscriptionToJson(subscription);
+    const result = await api.subscribePush(subJson);
+    if (!result.ok) {
+      return { ok: false, permission, error: result.error || 'Falha ao registrar as notificações no servidor.' };
+    }
+
+    stage = 'salvar local';
+    await kvSet('pushSubscribed', true);
+    await kvSet('pushEndpoint', subJson.endpoint);
+
+    stage = 'notificação de teste';
+    const testResult = await api.sendTestPush();
+    return { ok: true, permission, testSent: testResult.ok };
+  } catch (err) {
+    const detail = [err && err.name, err && err.message].filter(Boolean).join(': ');
+    return {
+      ok: false,
+      permission,
+      error: `Falhou em "${stage}"${detail ? ` — ${detail}` : ''}`
+    };
   }
 }
-
-/** Usado pelo fluxo de "Apagar meus dados deste dispositivo". */
-export async function unsubscribeEverywhere() {
-  try {
-    if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await api.unsubscribePush(subscription.endpoint);
-        await subscription.unsubscribe();
-        return;
-      }
-    }
-    await api.unsubscribePush();
-  } catch {
-    // best-effort — a limpeza local (IndexedDB) continua acontecendo de qualquer forma.
-  }
 }
