@@ -3,8 +3,8 @@
 // usuário no botão "Ativar lembretes" — nunca automaticamente no load da página.
 
 import { CONFIG } from './config.js';
-import { api } from './api.js';
-import { kvSet, kvGet } from './db.js';
+import { api, ensureInstallation } from './api.js';
+const CACHE_VERSION = 'feito-v2';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -31,6 +31,19 @@ export async function activateNotifications() {
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
     return { ok: false, permission, error: null };
+  }
+
+  // A instalação PRECISA existir antes de qualquer chamada autenticada. Este fluxo pode
+  // rodar no onboarding, ou seja, antes de a tela principal ter chamado ensureInstallation();
+  // sem isto, /api/push/subscribe sai sem os cabeçalhos de autenticação e o backend
+  // responde 401 ("Cabeçalhos de autenticação ausentes").
+  const installation = await ensureInstallation();
+  if (!installation.ok) {
+    return {
+      ok: false,
+      permission,
+      error: 'Não foi possível falar com o servidor para registrar este aparelho. Verifique a conexão e tente de novo.'
+    };
   }
 
   try {
