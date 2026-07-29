@@ -17,5 +17,5 @@ export const CONFIG = {
 
   // Versão do app — usada para exibir o número em Ajustes e como parte do cache do Service
   // Worker (ver sw.js). Atualize ao publicar mudanças relevantes.
-  APP_VERSION: '1.3.0'
+  APP_VERSION: '1.4.0'
 };

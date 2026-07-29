@@ -56,7 +56,7 @@ async function loadPage({ list, indicatorsRow, loadMoreBtn, emptyHint, append = 
 function renderIndicators(container, indicators) {
   container.innerHTML = '';
   if (!indicators) return;
-  container.appendChild(indicatorPill(String(indicators.completedInPage), 'Concluídas nesta página'));
+  container.appendChild(indicatorPill(String(indicators.completedInPage), 'Concluídas'));
   container.appendChild(indicatorPill(String(indicators.completedBeforeThirdReminder), 'Resolvidas antes do 3º aviso'));
   container.appendChild(indicatorPill(String(indicators.averageRemindersPerTask), 'Média de avisos por tarefa'));
 }

@@ -3,7 +3,7 @@
 //
 // IMPORTANTE: suba o número de CACHE_VERSION sempre que publicar mudanças nos arquivos
 // estáticos. É isso que faz o Safari perceber que há uma versão nova do Service Worker.
-const CACHE_VERSION = 'feito-v6';
+const CACHE_VERSION = 'feito-v7';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 // Caminhos relativos ao próprio sw.js — funcionam tanto em domínio raiz quanto em
