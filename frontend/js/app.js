@@ -14,7 +14,6 @@ import { renderSettings, checkHomeArrivalIfConfigured } from './ui/settings.js';
 import { toast } from './ui/components.js';
 
 const screens = {
-  loading: document.getElementById('screen-loading'),
   install: document.getElementById('screen-install'),
   main: document.getElementById('screen-main')
 };
@@ -118,24 +117,91 @@ function wireTabBar() {
   });
 }
 
+// --------------------------- Tema claro/escuro ---------------------------
+
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme'); // 'light' | 'dark' | null
+}
+
+function systemPrefersDark() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function applyTheme(theme) {
+  if (theme) document.documentElement.setAttribute('data-theme', theme);
+  else document.documentElement.removeAttribute('data-theme');
+
+  const isDark = theme ? theme === 'dark' : systemPrefersDark();
+
+  const icon = document.getElementById('theme-toggle-icon');
+  // O ícone mostra o que o toque VAI fazer: sol para "ir para o claro".
+  if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+
+  const btn = document.getElementById('btn-theme-toggle');
+  if (btn) btn.setAttribute('aria-label', isDark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
+
+  // Mantém a cor da barra de status do iPhone coerente com o tema escolhido.
+  const meta = document.querySelector('meta[name="theme-color"]:not([media])')
+    || document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', isDark ? '#141220' : '#F7F4FF');
+}
+
+function wireThemeToggle() {
+  const btn = document.getElementById('btn-theme-toggle');
+  if (!btn) return;
+
+  applyTheme(currentTheme());
+
+  btn.addEventListener('click', () => {
+    const isDarkNow = currentTheme() ? currentTheme() === 'dark' : systemPrefersDark();
+    const next = isDarkNow ? 'light' : 'dark';
+    applyTheme(next);
+    try { localStorage.setItem('feito.theme', next); } catch { /* modo privado: vale só nesta sessão */ }
+  });
+}
+
 // --------------------------- Ativação de lembretes (in-app) ---------------------------
 
-/** Mostra o cartão "Ative os lembretes" só enquanto as notificações não estiverem ativas. */
-async function refreshNotificationCta() {
+/**
+ * O cartão tem três estados: pedindo ativação, já ativado (confirmação discreta) ou
+ * escondido (quando o aparelho não suporta push).
+ */
+function refreshNotificationCta() {
   const cta = document.getElementById('notif-cta');
   if (!cta) return;
 
-  const platform = getPlatformSnapshot();
-  if (!platform.supportsPush || platform.notificationPermission === 'unsupported') {
+  const title = document.getElementById('notif-cta-title');
+  const body = document.getElementById('notif-cta-body');
+  const btn = document.getElementById('btn-enable-notifications-inline');
+  const errorEl = document.getElementById('notif-cta-error');
+
+  const supported = 'Notification' in window && 'PushManager' in window && 'serviceWorker' in navigator;
+  if (!supported) {
     cta.hidden = true;
     return;
   }
 
-  // Basta a permissão estar concedida para o cartão sair da frente. Antes exigíamos também
-  // uma assinatura ativa; só que getSubscription() pode demorar ou falhar no Safari logo
-  // após a ativação, e o cartão continuava pedindo para ativar algo que já estava ativo.
-  // O estado detalhado (assinatura registrada no servidor) fica em Ajustes → Notificações.
-  cta.hidden = platform.notificationPermission === 'granted';
+  // Lê a permissão direto da API, e não de um retrato tirado no início do boot: depois de
+  // ativar, o valor muda na hora e o cartão precisa refletir isso sem esperar um reload.
+  const permission = Notification.permission;
+
+  cta.hidden = false;
+
+  if (permission === 'granted') {
+    cta.classList.add('is-active');
+    title.textContent = 'Lembretes ativados';
+    body.textContent = 'Este aparelho já recebe os avisos. Dá para testar em Ajustes → Notificações.';
+    btn.hidden = true;
+    errorEl.hidden = true;
+    return;
+  }
+
+  cta.classList.remove('is-active');
+  btn.hidden = false;
+  title.textContent = 'Ative os lembretes';
+  body.textContent = permission === 'denied'
+    ? 'As notificações estão bloqueadas nos Ajustes do iPhone.'
+    : 'Sem isso, o Feito? não consegue te avisar quando a hora chegar.';
 }
 
 function wireNotificationCta() {
@@ -158,14 +224,15 @@ function wireNotificationCta() {
 
     if (result.ok) {
       toast('Lembretes ativados. Enviei uma notificação de teste.');
-      await refreshNotificationCta();
+      refreshNotificationCta();
       return;
     }
 
     if (result.permission === 'denied') {
+      refreshNotificationCta();
       errorEl.hidden = false;
       errorEl.textContent =
-        'As notificações estão bloqueadas para o Feito?. Abra Ajustes do iPhone → Feito? → Notificações, permita os avisos e volte aqui.';
+        'Abra Ajustes do iPhone → Feito? → Notificações, permita os avisos e volte aqui.';
       return;
     }
 
@@ -190,64 +257,29 @@ async function registerServiceWorker() {
   try {
     const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
 
-    const showUpdateBanner = () => {
-      const banner = document.getElementById('update-banner');
-      if (banner) banner.hidden = false;
-    };
+    // Atualização silenciosa. Não existe mais o banner "Tem uma versão nova pronta": ele
+    // dependia de skipWaiting() ser acionado pela página, e no Safari em modo PWA isso
+    // falha com frequência — o resultado era um banner permanente que não fazia nada.
+    // Agora o Service Worker novo assume sozinho (skipWaiting no install), e aqui só
+    // decidimos QUANDO recarregar a tela para que o código novo passe a valer.
+    let pendingReload = false;
 
-    // Caso 1: já havia uma versão nova esperando quando o app abriu. O evento 'updatefound'
-    // NÃO dispara nesse cenário (ele já disparou numa sessão anterior), então sem esta
-    // checagem o banner nunca apareceria e o app ficaria preso na versão antiga.
-    if (registration.waiting && navigator.serviceWorker.controller) showUpdateBanner();
-
-    // Caso 2: a versão nova é descoberta agora, com o app aberto.
-    registration.addEventListener('updatefound', () => {
-      const installingWorker = registration.installing;
-      if (!installingWorker) return;
-      installingWorker.addEventListener('statechange', () => {
-        if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          showUpdateBanner();
-        }
-      });
-    });
-
-    const btnUpdate = document.getElementById('btn-update-now');
-    if (btnUpdate) {
-      btnUpdate.addEventListener('click', async () => {
-        btnUpdate.disabled = true;
-        btnUpdate.textContent = 'Atualizando…';
-
-        // Pega a registration mais atual — a variável capturada acima pode estar
-        // desatualizada se o Safari trocou de worker no meio do caminho.
-        const current = (await navigator.serviceWorker.getRegistration()) || registration;
-
-        if (current.waiting) {
-          current.waiting.postMessage({ type: 'SKIP_WAITING' });
-        } else {
-          // Não há worker esperando: força uma verificação e, se aparecer um, ativa.
-          try { await current.update(); } catch { /* segue para o recarregamento */ }
-          if (current.waiting) current.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-
-        // Rede de segurança para o Safari em modo standalone (PWA na Tela de Início), onde
-        // skipWaiting/controllerchange são notoriamente não confiáveis: apagamos os caches
-        // do app shell. Como a estratégia de busca é cache-first, sem cache o navegador é
-        // OBRIGADO a ir à rede e pegar os arquivos novos — mesmo que o worker antigo ainda
-        // esteja no controle. Não mexemos na assinatura de push, que vive na registration.
-        try {
-          const keys = await caches.keys();
-          await Promise.all(keys.filter((k) => k.startsWith('feito-')).map((k) => caches.delete(k)));
-        } catch { /* sem cache para limpar — segue para o recarregamento */ }
-
-        setTimeout(() => window.location.reload(), 600);
-      });
-    }
-
-    let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
+      if (pendingReload) return;
+      pendingReload = true;
+
+      // Recarregar no meio do uso seria grosseiro (o usuário pode estar preenchendo o
+      // formulário de uma lavagem). Esperamos o app sair de vista e voltar.
+      if (document.visibilityState === 'visible') {
+        document.addEventListener('visibilitychange', function onVisible() {
+          if (document.visibilityState === 'visible') {
+            document.removeEventListener('visibilitychange', onVisible);
+            window.location.reload();
+          }
+        });
+      } else {
+        window.location.reload();
+      }
     });
 
     navigator.serviceWorker.addEventListener('message', (event) => {
@@ -268,7 +300,13 @@ async function registerServiceWorker() {
 // --------------------------- Boot ---------------------------
 
 async function boot() {
-  await registerServiceWorker();
+  wireThemeToggle();
+
+  // O registro do Service Worker NÃO bloqueia mais a primeira tela. Antes o boot ficava
+  // esperando por ele, e nesse intervalo o usuário só via uma tela de splash com a palavra
+  // "Feito?" — tempo morto sem informação nenhuma. Agora a tela certa aparece de imediato
+  // e o Service Worker se registra em paralelo.
+  registerServiceWorker();
 
   const platform = getPlatformSnapshot();
 

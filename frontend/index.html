@@ -29,15 +29,27 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Feito?">
 <link rel="stylesheet" href="styles.css">
+
+<!-- Aplica o tema salvo ANTES de qualquer pintura, para não piscar a cor errada ao abrir.
+     Precisa ser arquivo externo (e não script inline) por causa da CSP script-src 'self'. -->
+<script src="js/theme-init.js"></script>
 </head>
 <body>
 
 <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
-<!-- ===================== Tela de carregamento ===================== -->
-<section id="screen-loading" class="screen screen-center" aria-live="polite">
-  <p class="loading-word">Feito?</p>
-</section>
+<!-- ===================== Barra fixa do topo =====================
+     Sempre visível, em qualquer tela. Substitui a antiga tela de splash que só mostrava
+     a palavra "Feito?" e atrasava a entrada no app. -->
+<header class="top-bar">
+  <span class="top-bar-title">Feito?</span>
+  <div class="top-bar-actions">
+    <span id="offline-badge" class="offline-badge" hidden>Offline</span>
+    <button type="button" id="btn-theme-toggle" class="theme-toggle" aria-label="Alternar tema claro e escuro">
+      <span id="theme-toggle-icon" aria-hidden="true">🌙</span>
+    </button>
+  </div>
+</header>
 
 <!-- ===================== Tela: instalar na Tela de Início ===================== -->
 <section id="screen-install" class="screen screen-center" hidden>
@@ -69,19 +81,15 @@
 <!-- ===================== App principal ===================== -->
 <section id="screen-main" class="screen" hidden>
 
-  <header class="app-header">
-    <span class="app-header-title">Feito?</span>
-    <span id="offline-badge" class="offline-badge" hidden>Offline</span>
-  </header>
-
   <div id="global-banner" class="global-banner" hidden role="status"></div>
 
   <!-- Convite para ativar os lembretes, dentro do app (substitui a antiga tela separada de
-       onboarding: quem já instalou na Tela de Início vai direto para o app e ativa daqui). -->
+       onboarding: quem já instalou na Tela de Início vai direto para o app e ativa daqui).
+       Depois de ativados, o mesmo espaço vira uma confirmação discreta. -->
   <div id="notif-cta" class="notif-cta" hidden>
     <div class="notif-cta-text">
-      <strong>Ative os lembretes</strong>
-      <span>Sem isso, o Feito? não consegue te avisar quando a hora chegar.</span>
+      <strong id="notif-cta-title">Ative os lembretes</strong>
+      <span id="notif-cta-body">Sem isso, o Feito? não consegue te avisar quando a hora chegar.</span>
     </div>
     <button type="button" id="btn-enable-notifications-inline" class="btn btn-primary">Ativar</button>
     <p id="notif-cta-error" class="notif-cta-error" hidden></p>
@@ -148,11 +156,8 @@
   </div>
 </section>
 
-<!-- ===================== Banner de atualização disponível ===================== -->
-<div id="update-banner" class="update-banner" hidden>
-  <span>Tem uma versão nova pronta.</span>
-  <button type="button" id="btn-update-now" class="btn btn-primary btn-small">Atualizar agora</button>
-</div>
+<!-- Não existe mais banner de "versão nova": o Service Worker se atualiza sozinho e o app
+     recarrega discretamente quando volta ao primeiro plano (ver sw.js e js/app.js). -->
 
 <script type="module" src="js/app.js"></script>
 </body>
