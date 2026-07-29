@@ -1,33 +1,17 @@
-# Configuração do Cloudflare Worker do "Feito?".
-# Este arquivo NÃO contém segredos. Os segredos (VAPID_PRIVATE_KEY_JWK) são cadastrados
-# separadamente com `wrangler secret put`, conforme instruções no README.
-
 name = "feito-app-api"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
 
-# --- Variáveis públicas (não secretas) ---
-# Troque pelo domínio real do seu GitHub Pages antes de publicar.
-# Formato: https://SEU-USUARIO.github.io  (sem barra final, sem o caminho do repositório)
 [vars]
-ALLOWED_ORIGINS = "https://SEU-USUARIO.github.io"
-VAPID_SUBJECT = "mailto:seu-email@example.com"
-VAPID_PUBLIC_KEY = "COLE_AQUI_A_CHAVE_PUBLICA_VAPID_GERADA"
+ALLOWED_ORIGINS = "https://jeancelsosilva-prog.github.io"
+VAPID_SUBJECT = "mailto:jeancelsosilva@gmail.com"
+VAPID_PUBLIC_KEY = "BH7Lajz0qwN7jW7iy_6rFWA-03yxP1gv012FpqzTXcwGpGvFCXlzVSh42OHMgbw-m08AW9Swv77jsNROPumVvMQ"
 
-# --- Banco de dados D1 ---
-# O database_id abaixo é um placeholder. Substitua pelo ID real devolvido por:
-#   npx wrangler d1 create feito-app-db
 [[d1_databases]]
 binding = "DB"
 database_name = "feito-app-db"
-database_id = "COLE_AQUI_O_DATABASE_ID"
+database_id = "440dcebf-ba8d-467b-ae7e-53e6a22c46cc"
+migrations_dir = "../migrations"
 
-# --- Cron Triggers ---
-# "* * * * *" a cada minuto: varre tarefas com lembrete vencido (src/cron.js runReminderSweep).
-# "0 * * * *" uma vez por hora, no minuto 0: manutenção — expira tarefas abandonadas e limpa
-#   logs antigos (src/cron.js runMaintenance). Ver src/index.js: o handler `scheduled` decide
-#   qual das duas rotinas rodar olhando `event.cron`, sem depender de nenhum contador em
-#   memória (que seria pouco confiável, já que o isolate do Worker pode ser reciclado a
-#   qualquer momento pela Cloudflare).
 [triggers]
 crons = ["* * * * *", "0 * * * *"]
