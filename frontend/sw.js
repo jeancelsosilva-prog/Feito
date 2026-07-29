@@ -4,7 +4,7 @@
 //
 // IMPORTANTE: suba o número de CACHE_VERSION sempre que publicar mudanças nos arquivos
 // estáticos. É isso que faz o Safari perceber que há uma versão nova do Service Worker.
-const CACHE_VERSION = 'feito-v4';
+const CACHE_VERSION = 'feito-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 
 // Caminhos relativos ao próprio sw.js — funcionam tanto em domínio raiz quanto em
@@ -89,7 +89,7 @@ self.addEventListener('fetch', (event) => {
 // --------------------------- Web Push ---------------------------
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'Feito?', body: 'Você tem uma tarefa pendente.' };
+  let payload = { title: 'Tarefa pendente', body: 'Toque para abrir o Feito?.' };
   try {
     if (event.data) payload = event.data.json();
   } catch {
@@ -109,7 +109,7 @@ self.addEventListener('push', (event) => {
     timestamp: payload.timestamp || Date.now()
   };
 
-  event.waitUntil(self.registration.showNotification(payload.title || 'Feito?', options));
+  event.waitUntil(self.registration.showNotification(payload.title || 'Tarefa pendente', options));
 
   // Badge da PWA: soma otimista de 1 — o app corrige o número exato assim que reabrir
   // (feature detection: nem todo navegador tem setAppBadge).

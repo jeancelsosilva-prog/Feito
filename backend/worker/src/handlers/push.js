@@ -63,8 +63,9 @@ export async function handlePushTest(request, env) {
       await sendWebPush({
         subscription: sub,
         payload: {
-          title: 'Feito?',
-          body: 'Assim que os lembretes vão chegar por aqui. Tudo certo!',
+          // Sem repetir o nome do app: o iOS já o exibe no cabeçalho da notificação.
+          title: 'Tudo certo por aqui',
+          body: 'É assim que os lembretes vão chegar.',
           taskId: null,
           module: null,
           url: '/',

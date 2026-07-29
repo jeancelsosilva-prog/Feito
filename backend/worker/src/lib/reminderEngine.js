@@ -160,7 +160,10 @@ export async function processDueTask(env, taskRow, { vapidKeys, vapidSubject, lo
       await sendWebPush({
         subscription: sub,
         payload: {
-          title: 'Feito?',
+          // O título é a TAREFA, não o nome do app: o iOS já mostra "Feito?" no cabeçalho
+          // da notificação (vem do manifest). Repetir o nome ali deixava a notificação com
+          // o mesmo texto duas vezes e desperdiçava a linha mais visível do aviso.
+          title: taskTitle(fresh),
           body: message.text,
           taskId: fresh.id,
           module: fresh.module,

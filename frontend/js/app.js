@@ -6,7 +6,7 @@ import { getPlatformSnapshot } from './platform.js';
 import { setOnboardingSeenSync } from './db.js';
 import { cacheTasksReplace, cacheTasksGetAll } from './db.js';
 import { ensureInstallation, api } from './api.js';
-import { activateNotifications, isPushSubscribed } from './push.js';
+import { activateNotifications } from './push.js';
 import { wireInstallScreen } from './ui/onboarding.js';
 import { renderToday } from './ui/today.js';
 import { renderHistory } from './ui/history.js';
@@ -131,7 +131,11 @@ async function refreshNotificationCta() {
     return;
   }
 
-  cta.hidden = platform.notificationPermission === 'granted' && (await isPushSubscribed());
+  // Basta a permissão estar concedida para o cartão sair da frente. Antes exigíamos também
+  // uma assinatura ativa; só que getSubscription() pode demorar ou falhar no Safari logo
+  // após a ativação, e o cartão continuava pedindo para ativar algo que já estava ativo.
+  // O estado detalhado (assinatura registrada no servidor) fica em Ajustes → Notificações.
+  cta.hidden = platform.notificationPermission === 'granted';
 }
 
 function wireNotificationCta() {
@@ -225,10 +229,17 @@ async function registerServiceWorker() {
           if (current.waiting) current.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
 
-        // Rede de segurança: no Safari em modo standalone (PWA na tela de início) o evento
-        // 'controllerchange' às vezes não chega, e sem isso o banner ficava para sempre na
-        // tela com o app rodando a versão antiga. Recarregar resolve mesmo nesse caso.
-        setTimeout(() => window.location.reload(), 1200);
+        // Rede de segurança para o Safari em modo standalone (PWA na Tela de Início), onde
+        // skipWaiting/controllerchange são notoriamente não confiáveis: apagamos os caches
+        // do app shell. Como a estratégia de busca é cache-first, sem cache o navegador é
+        // OBRIGADO a ir à rede e pegar os arquivos novos — mesmo que o worker antigo ainda
+        // esteja no controle. Não mexemos na assinatura de push, que vive na registration.
+        try {
+          const keys = await caches.keys();
+          await Promise.all(keys.filter((k) => k.startsWith('feito-')).map((k) => caches.delete(k)));
+        } catch { /* sem cache para limpar — segue para o recarregamento */ }
+
+        setTimeout(() => window.location.reload(), 600);
       });
     }
 
